@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.9", "3.12"]
+        exclude:
+          # ubuntu-latest (26.04) has no setup-python builds for 3.9
+          - os: ubuntu-latest
+            python: "3.9"
+        include:
+          - os: ubuntu-24.04
+            python: "3.9"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+      - name: CLI smoke test
+        shell: bash
+        run: |
+          python envdiff.py --version
+          printf 'A=1\nSECRET_TOKEN=x\n' > a.env
+          printf 'A=2\nSECRET_TOKEN=y\nB=3\n' > b.env
+          python envdiff.py a.env b.env --no-color || test $? -eq 1
+          python envdiff.py a.env a.env --no-color
+          python envdiff.py a.env missing.env --no-color || test $? -eq 2
